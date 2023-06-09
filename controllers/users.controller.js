@@ -15,7 +15,8 @@ export default class UsersController {
     else if (email) filter.email = email;
     else if (phone) filter.phone = phone;
     try {
-      const userList = await User.find(filter);
+      let userList = await User.find();
+      userList = userList.filter((user) => user.username.includes(filter.username));
       if (userList.length != 0) 
         response.status(200).json(userList);
       else response.status(404).json('Not found this user!')

@@ -10,38 +10,22 @@ export default class CommentsController {
   //Ps: Trong posts.route, có phương thức getCommentsByPostId nên để phương thức này trống, nếu có thì server báo lỗi.
 
   static async addComments(request, response) {
-    // comment object contain the info needed (can destructuring if want to)
+    // post object contain the author id, caption, mediaURL, privacy and hashtags
     // return 201 Created if success and return the created object
     // return 400 Bad Request if missing values
-    try {
       const { postId } = request.params;
       const comment = request.body;
-
-    // Kiểm tra comment có đủ thông tin hay không
-    if (!comment || !comment.text || !comment.userId) {
-      return response.status(400).json({ error: "Bad Request" });
-    }
-
-    // Tạo mới comment
-    const newComment = await Comment.create(comment);
-
-    // Tìm post theo id 
-    const post = await Post.findById(postId);
-
-    if (!post) {
-      return response.status(404).json({ error: "Post not found" });
-    }
-
-    //Lưu comment mới tạo vào danh sách comment của bài post
-    post.comments.push(newComment.id);
-    await post.save();
-
-  
-    return response.status(201).json(newComment);
-    } catch (error) {
-    console.error(error);
-    return response.status(500).json({ error: "Something went wrong" });
-    }
+      const newComment = await Comment(comment);
+      try {
+        if(!comment.text || !comment.author) {
+          return response.status(400).json("Missing values");
+        } 
+        const savedComment = await newComment.save();
+        await Post.findOneAndUpdate({_id: postId}, { $push: { comments: savedComment._id }});
+        response.status(201).json(savedComment);
+      } catch (error) {
+        response.status(500).json(error);
+      }
   }
 
   static async updateCommentsById(request, response) {
@@ -74,26 +58,19 @@ export default class CommentsController {
   static async deleteCommentsById(request, response) {
     // ALWAY return 204 No Content
     // return 400 Bad Request if values is invalid/not found
-
+    const { postId, commentId } = request.params;
     try {
-      const { postId, commentId } = request.params;
-
+      
       //Xóa một bình luận
-      const comment = await Comment.findById(commentId);
-      await comment.deleteOne();
-      if (!comment) {
-        return response.status(400).send({ message: "Bad Request" });
-      }
+      await Comment.findByIdAndDelete(commentId);
 
       //Tìm lại thông tin bài post chứa bình luận 
       const post = await Post.findById(postId);
       if (!post) {
         return response.status(404).json({ error: "Post not found" });
+      } else {
+        await Post.updateOne({_id: postId}, { $pull: { comments: commentId }});
       }
-
-      //Xóa id của bình luận trong bài viết sau khi xóa bình luận
-      post.comments.pull(commentId);
-      await post.save();
 
       return response.status(204).send({ message: "No Content" });
     } catch (error) {
